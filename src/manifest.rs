@@ -1,11 +1,22 @@
-use std::path::PathBuf;
+use std::{io::ErrorKind, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+pub mod errors;
 fn default_src_folder() -> PathBuf {
     "src".into()
 }
 fn default_include_folder() -> PathBuf {
     "include".into()
+}
+#[derive(Deserialize, Serialize, Default)]
+pub enum PackageKind {
+    #[default]
+    #[serde(rename = "exe")]
+    Executable,
+    #[serde(rename = "staticlib")]
+    StaticLibrary,
+    #[serde(rename = "dynlib")]
+    DynamicLibrary,
 }
 #[derive(Deserialize, Serialize)]
 pub struct Package {
@@ -40,22 +51,23 @@ pub struct Package {
     /// Disables linking with the std library when set to `true`
     #[serde(default)]
     pub disable_std_library: bool,
+
+    /// Sets the output artifact of this package (e.g. lib or exe)
+    #[serde(default)]
+    pub kind: PackageKind,
 }
-impl Package {
-    pub fn binary_path(&self) -> Result<PathBuf, String> {
-        let mut binary_output_path = PathBuf::new();
-        binary_output_path.push("target");
-        binary_output_path.push("binaries");
-        std::fs::create_dir_all(&binary_output_path)
-            .map_err(|err| format!("failed to create binaries folder: {err}"))?;
-        binary_output_path.push(format!("{}-{}", self.name, self.version.to_string()));
-        Ok(binary_output_path)
-    }
+
+#[derive(Deserialize, Serialize)]
+pub struct Workspace {
+    /// Paths to the children packages of this workspace
+    pub members: Vec<PathBuf>,
 }
 #[derive(Deserialize, Serialize)]
 pub struct Manifest {
+    pub workspace: Option<Workspace>,
     pub package: Option<Package>,
 }
+
 impl Manifest {
     pub fn init_manifest(package_name: String) -> String {
         format!(
@@ -69,7 +81,33 @@ version = "0.1.0"
 # enable_pthread_library = false
 # enable_math_library = false
 # disable_std_library = false
+# kind = "exe" or "lib"
 "#
         )
+    }
+    pub fn load_manifest_from_file_path(
+        file_path: impl Into<PathBuf>,
+    ) -> Result<Self, errors::ManifestLoadError> {
+        let manifest_string_content;
+        match std::fs::read_to_string(file_path.into()) {
+            Ok(content) => manifest_string_content = content,
+            Err(e) => {
+                return match e.kind() {
+                    ErrorKind::NotFound => Err(errors::ManifestLoadError::NotFound),
+                    _ => Err(errors::ManifestLoadError::IOError(e)),
+                }
+            }
+        };
+        match toml::from_str(&manifest_string_content) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(errors::ManifestLoadError::Invalid(e)),
+        }
+    }
+    pub fn load_manifest_from_project_path(
+        project_path: impl Into<PathBuf>,
+    ) -> Result<Self, errors::ManifestLoadError> {
+        let mut manifest_path = project_path.into();
+        manifest_path.push("cpm.toml");
+        Self::load_manifest_from_file_path(manifest_path)
     }
 }

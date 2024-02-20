@@ -1,5 +1,7 @@
 mod commands;
+mod filenames;
 mod manifest;
+mod package;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};

@@ -4,6 +4,7 @@ use std::{
     process::Command,
 };
 
+use crate::{filenames::MANIFEST_FILE_NAME, package::compiler::PackageCompiler};
 use crate::{
     manifest::{Manifest, Package},
     CPMArguments,
@@ -20,7 +21,7 @@ macro_rules! handle_error {
         match $result {
             Ok(it) => it,
             Err(err) => {
-                eprintln!("\x1b[1;31merror:\x1b[0m {err}");
+                print_error(format!("\x1b[1;31merror:\x1b[0m {err}"));
                 std::process::exit(1)
             }
         }
@@ -30,7 +31,7 @@ macro_rules! handle_error {
         match $result {
             Ok(it) => it,
             Err(err) => {
-                eprintln!("\x1b[1;31merror:\x1b[0m {}: {err}", $message);
+                print_error(format!("\x1b[1;31merror:\x1b[0m {}: {err}", $message));
                 std::process::exit(1)
             }
         }
@@ -39,7 +40,7 @@ macro_rules! handle_error {
         match $result {
             Ok(it) => it,
             Err(err) => {
-                eprintln!("\x1b[1;31merror:\x1b[0m {}: {err:?}", $message);
+                print_error(format!("{}: {err:?}", $message));
                 std::process::exit(1)
             }
         }
@@ -48,7 +49,7 @@ macro_rules! handle_error {
         match $result {
             Ok(it) => it,
             Err(err) => {
-                eprintln!("\x1b[1;31merror:\x1b[0m {}: {err:#?}", $message);
+                print_error(format!("{}: {err:#?}", $message));
                 std::process::exit(1)
             }
         }
@@ -57,12 +58,17 @@ macro_rules! handle_error {
         match $opt {
             Some(it) => it,
             None => {
-                eprintln!("\x1b[1;31merror:\x1b[0m {}", $message);
+                print_error($message);
                 std::process::exit(1)
             }
         }
     };
 }
+
+fn print_error(message: impl Into<String>) {
+    eprintln!("\x1b[1;31merror:\x1b[0m {}", message.into());
+}
+
 pub fn init(path: PathBuf) {
     handle_error!(
         result = std::fs::create_dir_all(&path),
@@ -93,7 +99,7 @@ pub fn init(path: PathBuf) {
         CPMArguments::command()
             .error(
                 clap::error::ErrorKind::ValueValidation,
-                "the specified folder already contains a `cpm.toml` file",
+                &format!("the specified folder already contains a `{MANIFEST_FILE_NAME}` file"),
             )
             .exit();
     }
@@ -122,166 +128,52 @@ pub fn init(path: PathBuf) {
         message = "failed to create include folder"
     );
 }
-pub fn object_file_path_of_source(
-    package: &Package,
-    source_path: PathBuf,
-) -> std::io::Result<PathBuf> {
-    let mut src_folder_path = std::env::current_dir()?;
-    src_folder_path.push("src");
-    let mut object_file_path = PathBuf::new();
-    object_file_path.push("target");
-    object_file_path.push(&package.name);
-    object_file_path.push(package.version.to_string());
-    object_file_path.push("objs");
-    object_file_path.push(source_path.with_extension("o"));
-    std::fs::create_dir_all(object_file_path.parent().unwrap())?;
-    Ok(object_file_path)
-}
-pub fn needs_rebuild(source_path: &Path, object_path: &Path) -> bool {
-    let Ok(object_path_metadata) = std::fs::metadata(object_path) else {
-        return true;
-    };
-    let Ok(source_path_metadata) = std::fs::metadata(source_path) else {
-        return true;
-    };
-    let Ok(source_modified) = source_path_metadata.modified() else {
-        return true;
-    };
-    let Ok(object_modified) = object_path_metadata.modified() else {
-        return true;
-    };
-    object_modified < source_modified
-}
-pub fn build_c_file(source_path: PathBuf, package: &Package) -> Result<PathBuf, String> {
-    let object_path = object_file_path_of_source(package, source_path.clone())
-        .expect("failed to get object path of source file");
-    if needs_rebuild(source_path.as_path(), object_path.as_path()) {
-        let mut command = Command::new("gcc");
-        if package.disable_std_library {
-            command.arg("-no-std");
-        }
-        command
-            .args(package.additional_compiler_flags.as_slice())
-            .arg(format!("-I{}", package.include_folder.display()))
-            .arg("-c")
-            .arg("-o")
-            .arg(&object_path)
-            .arg(&source_path);
-        let status = command
-            .spawn()
-            .map_err(|e| e.to_string())?
-            .wait()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            return Err(format!(
-                "failed to compile file {} of package {:?} (version {})",
-                source_path.display(),
-                package.name,
-                package.version
-            ));
-        }
-    }
-    Ok(object_path)
-}
-
-pub fn link_package(package: &Package, object_files: HashSet<PathBuf>) -> Result<PathBuf, String> {
-    let mut command = Command::new("gcc");
-    command
-        .args(&object_files)
-        .args(package.additional_linker_flags.as_slice());
-    if !package.disable_std_library {
-        command.arg("-lc");
-    }
-    if package.enable_math_library {
-        command.arg("-lm");
-    }
-    if package.enable_pthread_library {
-        command.arg("-lpthread");
-    }
-    let binary_output_path = package.binary_path()?;
-    command.arg("-o").arg(&binary_output_path);
-    let status = command
-        .spawn()
-        .map_err(|e| e.to_string())?
-        .wait()
-        .map_err(|e| e.to_string())?;
-    if !status.success() {
-        return Err(format!(
-            "failed to link package {:?} (version {})",
-            package.name, package.version
-        ));
-    }
-    Ok(binary_output_path)
-}
-pub fn build_project() -> PathBuf {
+pub fn build_project() {
     let mut cmd = CPMArguments::command();
-    if !PathBuf::from("cpm.toml").exists() {
+    if !PathBuf::from(MANIFEST_FILE_NAME).exists() {
         cmd.error(
             clap::error::ErrorKind::Io,
-            "you're not currently on a CPM project",
+            &format!(
+                "you're not currently on a CPM project (`{MANIFEST_FILE_NAME}` does not exist)"
+            ),
         )
         .exit();
     }
     let manifest_string = handle_error!(
         result = std::fs::read_to_string("cpm.toml"),
-        message = "failed to read `cpm.toml`"
+        message = &format!("failed to read`{MANIFEST_FILE_NAME}`")
     );
     let manifest: Manifest = handle_error!(
         result = toml::from_str(&manifest_string),
-        message = "`cpm.toml` contains errors"
+        message = &format!("`{MANIFEST_FILE_NAME}` contains errors")
     );
-    let package: &Package = handle_error!(
-        option = manifest.package.as_ref(),
-        message = "no package to compile"
+    let cwd = handle_error!(
+        result = std::env::current_dir(),
+        message = "failed to access current working dir"
     );
-    let src_walkdir = WalkDir::new(&package.src_folder)
-        .contents_first(true)
-        .into_iter();
-    let mut compilation_error_count = 0u32;
-    let obj_file_paths: HashSet<PathBuf> = src_walkdir
-        .filter_entry(|e| e.path().extension().is_some_and(|ext| ext == "c"))
-        .filter_map(|e| {
-            let e = match e {
-                Ok(e) => e,
-                Err(err) => {
-                    eprintln!("\x1b[1;31merror:\x1b[0m failed to read file: {err}");
-                    compilation_error_count += 1;
-                    return None;
-                }
-            };
-            match build_c_file(e.into_path(), &package) {
-                Ok(obj) => Some(obj),
-                Err(err) => {
-                    eprintln!("\x1b[1;31merror:\x1b[0m {err}");
-                    compilation_error_count += 1;
-                    return None;
-                }
-            }
-        })
-        .collect();
-    if compilation_error_count > 0 {
-        eprintln!("\x1b[1;31merror:\x1b[0m stopping compilation due to {compilation_error_count} previous errors");
-        std::process::exit(1);
+    let mut packages_to_compile: Vec<PathBuf> = vec![];
+    if manifest.package.is_some() {
+        packages_to_compile.push(cwd.clone());
     }
-    if !obj_file_paths.is_empty() {
-        let binary_path = handle_error!(result = link_package(&package, obj_file_paths));
-        println!(
-            "\x1b[1;32mFinished building package \x1b[0m ({})",
-            binary_path.display()
-        );
-        binary_path
-    } else {
-        eprintln!("No files to compile");
-        std::process::exit(1);
+    if let Some(workspace) = manifest.workspace.as_ref() {
+        packages_to_compile.extend(workspace.members.iter().map(|member_path| {
+            let mut absolute_path = cwd.clone();
+            absolute_path.push(member_path);
+            absolute_path
+        }));
     }
+    let workspace_path = cwd.clone();
+    for package_path in packages_to_compile {
+        let package_compiler =
+            handle_error!(result = PackageCompiler::new(package_path, workspace_path.clone()));
+        package_compiler.compile(todo!()).unwrap();
+    }
+    // if todo!() as i32 > 0 {
+    //     print_error("stopping compilation due to {compilation_error_count} previous errors");
+    //     std::process::exit(1);
+    // }
+    // println!("\x1b[1;32mFinished building package \x1b[0m ({})", todo!());
 }
 pub fn run_project() {
-    let binary_path = build_project();
-    std::process::exit(handle_error!(
-        option = handle_error!(
-            result = handle_error!(result = Command::new(binary_path).spawn()).wait()
-        )
-        .code(),
-        message = "No exit code? *megamind meme*"
-    ));
+    todo!("Run project");
 }
