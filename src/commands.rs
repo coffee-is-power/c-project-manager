@@ -1,10 +1,6 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::path::PathBuf;
 
-use crate::{filenames::MANIFEST_FILE_NAME, package::compiler::PackageCompiler};
+use crate::{filenames::MANIFEST_FILE_NAME, package::builder::PackageBuilder};
 use crate::{
     manifest::{Manifest, Package},
     CPMArguments,
@@ -164,9 +160,9 @@ pub fn build_project() {
     }
     let workspace_path = cwd.clone();
     for package_path in packages_to_compile {
-        let package_compiler =
-            handle_error!(result = PackageCompiler::new(package_path, workspace_path.clone()));
-        package_compiler.compile(todo!()).unwrap();
+        let package_builder =
+            handle_error!(result = PackageBuilder::new(package_path, workspace_path.clone()));
+        package_builder.compile(todo!()).unwrap();
     }
     // if todo!() as i32 > 0 {
     //     print_error("stopping compilation due to {compilation_error_count} previous errors");

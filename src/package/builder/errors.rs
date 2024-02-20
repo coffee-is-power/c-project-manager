@@ -25,7 +25,7 @@ pub struct CompileFileError {
 }
 
 #[derive(Error, Debug)]
-pub enum CompilePackageError {
+pub enum BuildPackageError {
     #[error("no files to compile (no source files found)")]
     NoFilesToCompile,
     #[error("compilation errors occurred: {0:#?}")]

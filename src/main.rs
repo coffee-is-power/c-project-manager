@@ -1,4 +1,5 @@
 mod commands;
+mod compiler;
 mod filenames;
 mod manifest;
 mod package;
