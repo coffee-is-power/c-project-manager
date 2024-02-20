@@ -196,9 +196,8 @@ impl PackageBuilder {
         let mut compilation_errors = vec![];
         let mut object_files = vec![];
         for src in src_files {
-            let object_folder_path = self.object_file_folder_for_source_file(&src);
-            create_parent_folder(object_folder_path)?;
-            let object_file_path = self.object_file_folder_for_source_file(&src);
+            let object_file_path = self.object_file_for_source_file(&src);
+            create_parent_folder(&object_file_path)?;
             if file_needs_rebuild(&src, &object_file_path) {
                 let output = compiler
                     .compile_command(src.clone(), object_file_path.clone(), self.package())
