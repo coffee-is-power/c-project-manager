@@ -11,8 +11,6 @@ pub enum CreatePackageCompilerError {
     InvalidWorkspaceManifest(manifest::errors::ManifestLoadError),
     #[error("`package` section not found")]
     PackageNotFound,
-    #[error("`workspace` section not found")]
-    WorkspaceNotFound,
 }
 
 #[derive(Error, Debug)]
