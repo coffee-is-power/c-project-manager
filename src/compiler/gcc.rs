@@ -7,6 +7,7 @@ pub struct GCC;
 impl Compiler for GCC {
     fn compile_command(
         &self,
+        package_path: PathBuf,
         source_path: PathBuf,
         output_path: PathBuf,
         package_info: &crate::manifest::Package,
@@ -17,12 +18,15 @@ impl Compiler for GCC {
         }
         command.arg(source_path).args(["-c", "-o"]).arg(output_path);
         command.args(&package_info.additional_compiler_flags);
-        command.arg(format!("-I{}", package_info.include_folder.display()));
+        let mut include_folder_absolute_path = package_path.clone();
+        include_folder_absolute_path.push(&package_info.include_folder);
+        command.arg(format!("-I{}", include_folder_absolute_path.display()));
         command
     }
 
     fn link_command(
         &self,
+        _package_path: PathBuf,
         object_files: Vec<PathBuf>,
         output_path: PathBuf,
         package_info: &crate::manifest::Package,

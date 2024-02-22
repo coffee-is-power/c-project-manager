@@ -17,6 +17,7 @@ pub trait Compiler {
     /// It may use the package info to modify the way the command is generated (e.g. with compiler flags or dependencies)
     fn compile_command(
         &self,
+        package_path: PathBuf,
         source_path: PathBuf,
         output_path: PathBuf,
         package_info: &manifest::Package,
@@ -30,6 +31,7 @@ pub trait Compiler {
     /// It may use the package info to modify the way the command is generated (e.g. with linker flags or dependencies)
     fn link_command(
         &self,
+        package_path: PathBuf,
         object_files: Vec<PathBuf>,
         output_path: PathBuf,
         package_info: &manifest::Package,

@@ -200,7 +200,12 @@ impl PackageBuilder {
             create_parent_folder(&object_file_path)?;
             if file_needs_rebuild(&src, &object_file_path) {
                 let output = compiler
-                    .compile_command(src.clone(), object_file_path.clone(), self.package())
+                    .compile_command(
+                        self.package_path(),
+                        src.clone(),
+                        object_file_path.clone(),
+                        self.package(),
+                    )
                     .stdout(Stdio::inherit())
                     .stderr(Stdio::inherit())
                     .output()?;
@@ -228,7 +233,12 @@ impl PackageBuilder {
         self.create_output_folder()?;
         let package_output_path = self.output_path();
         let link_command_output = compiler
-            .link_command(object_files, package_output_path.clone(), self.package())
+            .link_command(
+                self.package_path(),
+                object_files,
+                package_output_path.clone(),
+                self.package(),
+            )
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()?;
