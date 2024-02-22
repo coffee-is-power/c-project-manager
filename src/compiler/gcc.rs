@@ -35,8 +35,8 @@ impl Compiler for GCC {
         command
             .args(&object_files)
             .args(package_info.additional_linker_flags.as_slice());
-        if !package_info.disable_std_library {
-            command.arg("-lc");
+        if package_info.disable_std_library {
+            command.arg("-no-std");
         }
         if package_info.enable_math_library {
             command.arg("-lm");
