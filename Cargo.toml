@@ -1,6 +1,6 @@
 [package]
 name = "cpm"
-version = "0.1.0-alpha"
+version = "0.1.1-alpha"
 edition = "2021"
 description = "C Project Manager"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
