@@ -173,7 +173,7 @@ impl PackageBuilder {
             self.package().name,
             self.package().version
         ));
-        objects_folder_path.push(path_from_source_folder);
+        objects_folder_path.push(path_from_source_folder.parent().unwrap());
         objects_folder_path
     }
     pub fn object_file_for_source_file(&self, source_file: impl Into<PathBuf>) -> PathBuf {
@@ -198,6 +198,7 @@ impl PackageBuilder {
         for src in src_files {
             let object_file_path = self.object_file_for_source_file(&src);
             create_parent_folder(&object_file_path)?;
+            object_files.push(object_file_path.clone());
             if file_needs_rebuild(&src, &object_file_path) {
                 let output = compiler
                     .compile_command(
@@ -215,8 +216,6 @@ impl PackageBuilder {
                         src_file_path: src,
                         object_file_path,
                     });
-                } else {
-                    object_files.push(object_file_path);
                 }
             }
         }
