@@ -8,7 +8,7 @@ fn default_src_folder() -> PathBuf {
 fn default_include_folder() -> PathBuf {
     "include".into()
 }
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize, Default, PartialEq, Eq)]
 pub enum PackageKind {
     #[default]
     #[serde(rename = "exe")]

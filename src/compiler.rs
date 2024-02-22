@@ -2,6 +2,8 @@ use std::{path::PathBuf, process::Command};
 
 use crate::manifest;
 
+mod gcc;
+pub use gcc::GCC;
 /// Any type that implements this trait can be used to generate a command to compile a package.
 ///
 /// For instance you might implement a generator for GCC, Clang, MSVC and other compilers based on the

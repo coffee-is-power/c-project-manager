@@ -15,7 +15,7 @@ pub struct PackageBuilder {
     workspace_path: PathBuf,
     workspace_info: Option<manifest::Workspace>,
 }
-
+#[allow(dead_code)]
 impl PackageBuilder {
     /// Creates a new package compiler
     pub fn new(
@@ -73,7 +73,7 @@ impl PackageBuilder {
     /// It does not create the folder,
     /// use `create_output_folder` to create the necessary folders
     pub fn output_folder_path(&self) -> PathBuf {
-        let mut output_path = self.workspace_path.clone();
+        let mut output_path = self.workspace_path();
         output_path.push("target");
         match self.package().kind {
             PackageKind::Executable => output_path.push("executables"),
@@ -81,7 +81,7 @@ impl PackageBuilder {
             PackageKind::DynamicLibrary => output_path.push("dynlibs"),
         }
         output_path.push(format!(
-            "{}-{:?}",
+            "{}-{}",
             self.package().name,
             self.package().version
         ));
@@ -101,11 +101,7 @@ impl PackageBuilder {
     /// use `create_output_folder` to create the necessary folders
     pub fn output_path(&self) -> PathBuf {
         let mut output_path = self.output_folder_path();
-        output_path.push(format!(
-            "{}-{:?}",
-            self.package().name,
-            self.package().version
-        ));
+        output_path.push(&self.package().name);
         match self.package().kind {
             PackageKind::Executable => output_path.set_extension(EXECUTABLE_EXTENSION),
             PackageKind::StaticLibrary => output_path.set_extension(STATIC_LIB_EXTENSION),
@@ -113,13 +109,16 @@ impl PackageBuilder {
         };
         output_path
     }
+    pub fn absolute_path_of_src_folder(&self) -> PathBuf {
+        let mut package_src_folder_path = self.package_path();
+        package_src_folder_path.push(&self.package().src_folder);
+        package_src_folder_path
+    }
     /// Gets all the paths to the source files in the source folder recursively
     /// using walkdir library.
     pub fn src_files(&self) -> impl std::iter::Iterator<Item = PathBuf> {
-        let mut package_src_folder_path = self.package_path();
-        package_src_folder_path.push(&self.package().src_folder);
-
-        let src_walkdir = WalkDir::new(&self.package().src_folder)
+        let package_src_folder_path = self.absolute_path_of_src_folder();
+        let src_walkdir = WalkDir::new(&package_src_folder_path)
             .contents_first(true)
             .into_iter();
 
@@ -155,8 +154,9 @@ impl PackageBuilder {
     fn absolute_source_path_to_relative_path(&self, source_file: impl Into<PathBuf>) -> PathBuf {
         let source_file = source_file.into();
         if source_file.is_absolute() {
+            let package_src_folder_path = self.absolute_path_of_src_folder();
             source_file
-                .strip_prefix(&self.package().src_folder)
+                .strip_prefix(&package_src_folder_path)
                 .expect("all source files must be inside the source folder")
                 .into()
         } else {
@@ -169,7 +169,7 @@ impl PackageBuilder {
         let path_from_source_folder = self.absolute_source_path_to_relative_path(source_file);
         let mut objects_folder_path = PathBuf::from("target/objects");
         objects_folder_path.push(format!(
-            "{}-{:?}",
+            "{}-{}",
             self.package().name,
             self.package().version
         ));

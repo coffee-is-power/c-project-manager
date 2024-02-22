@@ -9,9 +9,15 @@ use clap::{Parser, Subcommand};
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum CPMOperation {
+    #[command(about = "Create a new executable package")]
     Init { path: PathBuf },
+    #[command(about = "Build a package")]
     Build,
-    Run,
+    #[command(about = "Build and run a executable package")]
+    Run {
+        #[arg(short, long)]
+        package: Option<String>,
+    },
 }
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -27,6 +33,6 @@ fn main() {
         CPMOperation::Build => {
             let _ = commands::build_project();
         }
-        CPMOperation::Run => commands::run_project(),
+        CPMOperation::Run { package } => commands::run_project(package),
     }
 }

@@ -1,12 +1,11 @@
 use std::path::PathBuf;
+use std::process::Command;
 
+use crate::compiler::GCC;
+use crate::manifest::{self, PackageKind};
 use crate::{filenames::MANIFEST_FILE_NAME, package::builder::PackageBuilder};
-use crate::{
-    manifest::{Manifest, Package},
-    CPMArguments,
-};
+use crate::{manifest::Manifest, CPMArguments};
 use clap::CommandFactory;
-use walkdir::WalkDir;
 /// Helper macro to report errors more easily
 /// # Examples
 /// ```no_run
@@ -124,7 +123,7 @@ pub fn init(path: PathBuf) {
         message = "failed to create include folder"
     );
 }
-pub fn build_project() {
+fn check_manifest_exists() {
     let mut cmd = CPMArguments::command();
     if !PathBuf::from(MANIFEST_FILE_NAME).exists() {
         cmd.error(
@@ -135,6 +134,9 @@ pub fn build_project() {
         )
         .exit();
     }
+}
+pub fn build_project() {
+    check_manifest_exists();
     let manifest_string = handle_error!(
         result = std::fs::read_to_string("cpm.toml"),
         message = &format!("failed to read`{MANIFEST_FILE_NAME}`")
@@ -162,14 +164,113 @@ pub fn build_project() {
     for package_path in packages_to_compile {
         let package_builder =
             handle_error!(result = PackageBuilder::new(package_path, workspace_path.clone()));
-        package_builder.compile(todo!()).unwrap();
+        package_builder.compile(&GCC).unwrap();
+        println!(
+            "\x1b[1;32mFinished building package \x1b[0m ({})",
+            package_builder.package().name
+        );
     }
     // if todo!() as i32 > 0 {
     //     print_error("stopping compilation due to {compilation_error_count} previous errors");
     //     std::process::exit(1);
     // }
-    // println!("\x1b[1;32mFinished building package \x1b[0m ({})", todo!());
+    //
 }
-pub fn run_project() {
-    todo!("Run project");
+pub fn run_project(package_name_flag: Option<String>) {
+    check_manifest_exists();
+    let manifest_string = handle_error!(
+        result = std::fs::read_to_string("cpm.toml"),
+        message = &format!("failed to read`{MANIFEST_FILE_NAME}`")
+    );
+    let manifest: Manifest = handle_error!(
+        result = toml::from_str(&manifest_string),
+        message = &format!("`{MANIFEST_FILE_NAME}` contains errors")
+    );
+    let cwd = handle_error!(
+        result = std::env::current_dir(),
+        message = "failed to access current working dir"
+    );
+    let mut packages: Vec<PathBuf> = vec![];
+    if manifest.package.is_some() {
+        packages.push(cwd.clone());
+    }
+    if let Some(workspace) = manifest.workspace.as_ref() {
+        packages.extend(workspace.members.iter().map(|member_path| {
+            let mut absolute_path = cwd.clone();
+            absolute_path.push(member_path);
+            absolute_path
+        }));
+    }
+    let path_of_package_to_run: PathBuf;
+    match packages.len() {
+        0 => {
+            print_error("No packages to run. did you forget to add the package to `members`?");
+            std::process::exit(1);
+        }
+        1 => path_of_package_to_run = packages[0].clone(),
+        _ => match package_name_flag {
+            Some(name) => {
+                path_of_package_to_run = handle_error!(
+                    option = packages
+                        .iter()
+                        .find(|p| {
+                            let manifest = handle_error!(
+                                result = manifest::Manifest::load_manifest_from_project_path(&p),
+                                message = format!("Invalid package manifest at {}", p.display())
+                            );
+                            manifest.package.is_some_and(|p| {
+                                p.name == name && p.kind == PackageKind::Executable
+                            })
+                        })
+                        .cloned(),
+                    message = "no such package to run"
+                );
+            }
+            None => {
+                print_error(
+                    "Multiple possible packages to run, specify the package with `-p <name>`.",
+                );
+                println!("Available packages:");
+                println!();
+                for p in &packages {
+                    match manifest::Manifest::load_manifest_from_project_path(p) {
+                        Ok(manifest::Manifest {
+                            package:
+                                Some(manifest::Package {
+                                    name,
+                                    kind: PackageKind::Executable,
+                                    ..
+                                }),
+                            ..
+                        }) => {
+                            println!("- {}", name);
+                        }
+                        Ok(manifest::Manifest { .. }) => continue,
+                        Err(_) => {
+                            print_error("- <Error loading manifest>");
+                            continue;
+                        }
+                    }
+                }
+                std::process::exit(1);
+            }
+        },
+    }
+    let workspace_path = cwd.clone();
+    let package_builder =
+        handle_error!(result = PackageBuilder::new(path_of_package_to_run, workspace_path.clone()));
+    package_builder.compile(&GCC).unwrap();
+    println!(
+        "\x1b[1;32mFinished building package \x1b[0m ({})",
+        package_builder.package().name
+    );
+    std::process::exit(
+        Command::new(package_builder.output_path())
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap()
+            .code()
+            .unwrap(),
+    );
 }
