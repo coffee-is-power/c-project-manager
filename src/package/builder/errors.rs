@@ -16,7 +16,6 @@ pub enum CreatePackageCompilerError {
 #[derive(Error, Debug)]
 #[error("failed to compile file {src_file_path:?} (exit code {exit_code:?})")]
 pub struct CompileFileError {
-    pub stderr: String,
     pub exit_code: ExitStatus,
     pub src_file_path: PathBuf,
     pub object_file_path: PathBuf,
@@ -30,7 +29,6 @@ pub enum BuildPackageError {
     CompilationError(Vec<CompileFileError>),
     #[error("a linking error occurred:")]
     LinkingError {
-        stderr: String,
         output_file_path: PathBuf,
         exit_code: ExitStatus,
     },

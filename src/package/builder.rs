@@ -211,8 +211,6 @@ impl PackageBuilder {
                     .output()?;
                 if !output.status.success() {
                     compilation_errors.push(CompileFileError {
-                        stderr: String::from_utf8(output.stderr)
-                            .expect("compiler command must output valid UTF-8 in stderr"),
                         exit_code: output.status,
                         src_file_path: src,
                         object_file_path,
@@ -244,8 +242,6 @@ impl PackageBuilder {
             .output()?;
         if !link_command_output.status.success() {
             return Err(errors::BuildPackageError::LinkingError {
-                stderr: String::from_utf8(link_command_output.stderr)
-                    .expect("compiler command must output valid UTF-8 in stderr"),
                 output_file_path: package_output_path,
                 exit_code: link_command_output.status,
             });
